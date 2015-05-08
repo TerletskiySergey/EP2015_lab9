@@ -7,7 +7,7 @@ public class MyTreeMap implements MyMap {
     private static final boolean BLACK = true;
     private static final boolean RED = false;
 
-    static class SimpleEntry implements Entry {
+    private static class SimpleEntry implements Entry {
 
         private SimpleEntry parent;
         private SimpleEntry left;
@@ -20,10 +20,6 @@ public class MyTreeMap implements MyMap {
             this.key = key;
             this.value = value;
             this.color = RED;
-        }
-
-        public void changeColor() {
-            this.color = !this.color;
         }
 
         @Override
@@ -165,7 +161,59 @@ public class MyTreeMap implements MyMap {
 
     @Override
     public Object remove(Object key) {
-        return null;
+        if (key == null || !containsKey(key)) {
+            return null;
+        }
+        SimpleEntry toRemove = findDelPoint(root, key);
+        Object toReturn = toRemove.value;
+        size--;
+        modCount++;
+
+        // toRemove has one child
+        if (toRemove.left == null ^ toRemove.right == null) {
+            SimpleEntry subst = toRemove.left == null
+                    ? toRemove.right : toRemove.left;
+            subst.parent = toRemove.parent;
+            subst.color = toRemove.color;
+            if (toRemove == root) {
+                root = subst;
+            } else {
+                if (isRightChild(toRemove)) {
+                    toRemove.parent.right = subst;
+                } else {
+                    toRemove.parent.left = subst;
+                }
+            }
+        } else {
+            if (toRemove.color == BLACK) {
+                pullDown(toRemove, key);
+            }
+            // toRemove has no children
+            if (toRemove.left == null && toRemove.right == null) {
+                removeLeaf(toRemove);
+            }
+            // toRemove has two children
+            else {
+                SimpleEntry subst = findDelPoint(toRemove.left, key);
+                removeLeaf(subst);
+                toRemove.key = subst.key;
+                toRemove.value = subst.value;
+            }
+        }
+        if (root != null) {
+            root.color = BLACK;
+        }
+        return toReturn;
+    }
+
+    private void removeLeaf(SimpleEntry toRemove) {
+        if (toRemove == root) {
+            root = null;
+        } else if (isRightChild(toRemove)) {
+            toRemove.parent.right = null;
+        } else {
+            toRemove.parent.left = null;
+        }
     }
 
     @Override
@@ -176,6 +224,29 @@ public class MyTreeMap implements MyMap {
     @Override
     public Iterator entryIterator() {
         return new EntryIterator();
+    }
+
+    private SimpleEntry findDelPoint(SimpleEntry curEntry, Object key) {
+        while (!curEntry.key.equals(key)) {
+//            System.out.println(curEntry.value);
+            if (curEntry.color == BLACK) {
+                pullDown(curEntry, key);
+            }
+            if (compare(curEntry.key, key) > 0) {
+                if (curEntry.left == null) {
+                    break;
+                } else {
+                    curEntry = curEntry.left;
+                }
+            } else {
+                if (curEntry.right == null) {
+                    break;
+                } else {
+                    curEntry = curEntry.right;
+                }
+            }
+        }
+        return curEntry;
     }
 
     private SimpleEntry findInsertPoint(Object key) {
@@ -222,14 +293,14 @@ public class MyTreeMap implements MyMap {
                 ? ((Comparable) o1).compareTo(o2) : this.comparator.compare(o1, o2);
     }
 
-    private static boolean isRight(SimpleEntry toCheck) {
+    private static boolean isRightChild(SimpleEntry toCheck) {
         return toCheck.parent.right == toCheck;
     }
 
     // RBRules util methods
 
     private void fixDuringInsert(SimpleEntry toCheck) {
-        if (hasRedSuccessors(toCheck)) {
+        if (hasRedChildren(toCheck)) {
             flipColor(toCheck);
         }
         if (toCheck != root && isDoubleRed(toCheck)) {
@@ -250,44 +321,42 @@ public class MyTreeMap implements MyMap {
         return false;
     }
 
-    private boolean hasRedSuccessors(SimpleEntry toCheck) {
+    private boolean hasRedChildren(SimpleEntry toCheck) {
         if (toCheck.left == null || toCheck.right == null) {
             return false;
         }
-        if (toCheck.left.color == RED && toCheck.right.color == RED) {
-            return true;
-        }
-        return false;
+        return toCheck.left.color == RED && toCheck.right.color == RED;
     }
 
-    private boolean hasBlackSuccessors(SimpleEntry toCheck) {
+    private boolean hasBlackChildren(SimpleEntry toCheck) {
+        if (toCheck.left == null && toCheck.right == null) {
+            return true;
+        }
         if (toCheck.left == null || toCheck.right == null) {
             return false;
         }
-        if (toCheck.left.color == BLACK && toCheck.right.color == BLACK) {
-            return true;
-        }
-        return false;
+        return toCheck.left.color == BLACK && toCheck.right.color == BLACK;
     }
 
-    private void flipColor(SimpleEntry toFlip) {
-        if (toFlip != root) {
-            toFlip.changeColor();
+    public void changeColor(SimpleEntry entry) {
+        entry.color = !entry.color;
+    }
+
+    private void flipColor(SimpleEntry top) {
+        if (top != root) {
+            changeColor(top);
         }
-        toFlip.left.changeColor();
-        toFlip.right.changeColor();
+        changeColor(top.left);
+        changeColor(top.right);
     }
 
     private void pullUp(SimpleEntry toPull) {
-//        if (toPull.parent == null || toPull.parent.parent == null) {
-//            throw new IllegalArgumentException("Tree element has no ancestor");
-//        }
-        if (isRight(toPull) ^ isRight(toPull.parent)) {
+        if (isRightChild(toPull) ^ isRightChild(toPull.parent)) {
             // Inner grandson
-            toPull.parent.parent.changeColor();
-            toPull.changeColor();
+            changeColor(toPull.parent.parent);
+            changeColor(toPull);
             for (int i = 0; i < 2; i++) {
-                if (isRight(toPull)) {
+                if (isRightChild(toPull)) {
                     roL(toPull.parent);
                 } else {
                     roR(toPull.parent);
@@ -295,9 +364,9 @@ public class MyTreeMap implements MyMap {
             }
         } else {
             // Outer grandson
-            toPull.parent.parent.changeColor();
-            toPull.parent.changeColor();
-            if (isRight(toPull)) {
+            changeColor(toPull.parent.parent);
+            changeColor(toPull.parent);
+            if (isRightChild(toPull)) {
                 roL(toPull.parent.parent);
             } else {
                 roR(toPull.parent.parent);
@@ -305,23 +374,69 @@ public class MyTreeMap implements MyMap {
         }
     }
 
-/*    private void pullDown(SimpleEntry toPull, Object toDelete) {
-        // At least one red successor
-        if (!hasBlackSuccessors(toPull)) {
-            if (compare(toPull.key, toDelete) > 0 && toPull.left.color == BLACK) {
-                toPull.changeColor();
-                toPull.right.changeColor();
+    private void pullDown(SimpleEntry toPull, Object toDelete) {
+        SimpleEntry sibl;
+        // Root has two black children
+        if (toPull == root && hasBlackChildren(toPull)) {
+            changeColor(toPull);
+        }
+        // At least one red child
+        else if (!hasBlackChildren(toPull)) {
+            // Next step -> to the left and left child is black
+            if (compare(toPull.key, toDelete) >= 0 && toPull.left.color == BLACK) {
+                changeColor(toPull);
+                changeColor(toPull.right);
                 roL(toPull);
-            } else if (compare(toPull.key, toDelete) < 0 && toPull.right.color == BLACK) {
-                toPull.changeColor();
-                toPull.left.changeColor();
+                // Next step -> to the right and right child is black or null
+            } else if (compare(toPull.key, toDelete) < 0 &&
+                    (toPull.right == null || toPull.right.color == BLACK)) {
+                changeColor(toPull);
+                changeColor(toPull.left);
                 roR(toPull);
             }
-        } else if ((hasBlackSuccessors(toPull) && sibling(toPull)))
-//        if (isRight(toPull)){
-//            if (toPull.parent.left.color == )
-//        }
-    }*/
+        }
+        // Both siblings are black, their four children are black
+        else if (hasBlackChildren(sibling(toPull))) {
+            flipColor(toPull.parent);
+        }
+        // Both siblings are black, toPull's sibling has at least one red child
+        // toPull's sibling is a right child
+        else if (isRightChild(sibl = sibling(toPull))) {
+            // toPull sibling's right child is outer red grandson
+            if (sibl.right != null && sibl.right.color == RED) {
+                flipColor(toPull.parent);
+                // In case if parent was root
+                toPull.parent.color = BLACK;
+                changeColor(sibl.right);
+                roL(toPull.parent);
+            }
+            // toPull sibling's left child is inner red grandson
+            else {
+                changeColor(toPull);
+                changeColor(toPull.parent);
+                roR(sibl);
+                roL(toPull.parent);
+            }
+        }
+        // toPull's sibling is a left child
+        else {
+            // toPull sibling's left child is outer red grandson
+            if (sibl.left != null && sibl.left.color == RED) {
+                flipColor(toPull.parent);
+                // In case if parent was root
+                toPull.parent.color = BLACK;
+                changeColor(sibl.left);
+                roR(toPull.parent);
+            }
+            // toPull sibling's right child is inner grandson
+            else {
+                changeColor(toPull);
+                changeColor(toPull.parent);
+                roL(sibl);
+                roR(toPull.parent);
+            }
+        }
+    }
 
     private void roR(SimpleEntry top) {
         if (top == null) {
@@ -334,7 +449,7 @@ public class MyTreeMap implements MyMap {
         if (top == root) {
             root = top.left;
         } else {
-            if (isRight(top)) {
+            if (isRightChild(top)) {
                 top.parent.right = top.left;
             } else {
                 top.parent.left = top.left;
@@ -360,7 +475,7 @@ public class MyTreeMap implements MyMap {
         if (top == root) {
             root = top.right;
         } else {
-            if (isRight(top)) {
+            if (isRightChild(top)) {
                 top.parent.right = top.right;
             } else {
                 top.parent.left = top.right;
@@ -409,7 +524,7 @@ public class MyTreeMap implements MyMap {
         if (entry == null || entry.parent == null) {
             return null;
         }
-        if (isRight(entry)) {
+        if (isRightChild(entry)) {
             return entry.parent.left;
         }
         return entry.parent.right;
@@ -522,7 +637,7 @@ public class MyTreeMap implements MyMap {
         return toReturn.toString();
     }
 
-    public void checkBlackHeights(SimpleEntry top, int curHeight) {
+    private void checkBlackHeights(SimpleEntry top, int curHeight) {
         if (top == null) {
             return;
         }
@@ -540,8 +655,8 @@ public class MyTreeMap implements MyMap {
         }
     }
 
-    public static void main(String[] args) {
-        MyTreeMap map = new MyTreeMap();
+    public static void main(String[] args) throws Exception {
+        MyTreeMap treeMap = new MyTreeMap();
 //        map.put(31, 31);
 //        map.put(43, 43);
 //        map.put(5, 5);
@@ -554,25 +669,44 @@ public class MyTreeMap implements MyMap {
 //        map.put(75, 75);
 //        map.put(12, 12);
 //        map.put(37, 37);
-//        map.put(62, 62);
 //        map.put(87, 87);
-//        map.put(6, 6);
-//        map.put(18, 18);
+//        map.put(26, 26);
 //        map.put(95, 95);
 //        map.put(96, 96);
 //        map.put(97, 97);
 //        map.put(98, 98);
-        for (int i = 0; i < 20; i++) {
-            map.put((int) (Math.random() * 100), 0);
+//        map.put(94, 94);
+        Map hashMap = new HashMap();
+        int toAdd;
+        for (int i = 0; i < 10000; i++) {
+            while (hashMap.containsKey(toAdd = (int) (Math.random() * 50000))) ;
+            hashMap.put(toAdd, toAdd);
+            treeMap.put(toAdd, toAdd);
         }
-//        for (int i = 0; i < 500; i++) {
-//            map.put(i, 0);
-//        }
-//        Iterator<Entry> iterator = map.entryIterator();
-//        while(iterator.hasNext()){
-//            System.out.println(iterator.next());
-//        }
-        System.out.println(map);
-        map.checkBlackHeights(map.root, 0);
+
+
+
+        List keys = new ArrayList();
+        keys.addAll(hashMap.keySet());
+        for (int i = 0; i < 9980; i++) {
+            int toRemIndx = (int) (Math.random() * keys.size());
+            Object toRemove = keys.remove(toRemIndx);
+            treeMap.remove(toRemove);
+        }
+        System.out.println("size = " + treeMap.size());
+        System.out.println("root = " + treeMap.root);
+        System.out.println(treeMap);
+        treeMap.checkBlackHeights(treeMap.root, 0);
+
+        Iterator <Entry> iter = treeMap.entryIterator();
+        Integer prev = -1;
+        Integer cur;
+        while(iter.hasNext()){
+            if ((cur = (Integer)(iter.next().getKey())) < prev){
+                throw new Exception();
+            }
+            System.out.println(cur);
+            prev = cur;
+        }
     }
 }

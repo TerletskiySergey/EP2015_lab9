@@ -121,6 +121,11 @@ public class MyTreeMap implements MyMap {
     }
 
     @Override
+    public Iterator entryIterator() {
+        return new EntryIterator();
+    }
+
+    @Override
     public Object get(Object key) {
         SimpleEntry entry = findEntry(key);
         return entry == null ? null : entry.value;
@@ -206,24 +211,19 @@ public class MyTreeMap implements MyMap {
         return toReturn;
     }
 
-    private void removeLeaf(SimpleEntry toRemove) {
-        if (toRemove == root) {
-            root = null;
-        } else if (isRightChild(toRemove)) {
-            toRemove.parent.right = null;
-        } else {
-            toRemove.parent.left = null;
-        }
-    }
 
     @Override
     public int size() {
         return size;
     }
 
-    @Override
-    public Iterator entryIterator() {
-        return new EntryIterator();
+    private void changeColor(SimpleEntry entry) {
+        entry.color = !entry.color;
+    }
+
+    private int compare(Object o1, Object o2) {
+        return this.comparator == null
+                ? ((Comparable) o1).compareTo(o2) : this.comparator.compare(o1, o2);
     }
 
     private SimpleEntry findDelPoint(SimpleEntry curEntry, Object key) {
@@ -247,6 +247,21 @@ public class MyTreeMap implements MyMap {
             }
         }
         return curEntry;
+    }
+
+    private SimpleEntry findEntry(Object key) {
+        if (key == null) {
+            return null;
+        }
+        SimpleEntry curElement = root;
+        while (curElement != null && !curElement.key.equals(key)) {
+            if (((Comparable) curElement.key).compareTo(key) > 0) {
+                curElement = curElement.left;
+            } else {
+                curElement = curElement.right;
+            }
+        }
+        return curElement;
     }
 
     private SimpleEntry findInsertPoint(Object key) {
@@ -273,31 +288,11 @@ public class MyTreeMap implements MyMap {
         return curEntry;
     }
 
-    private SimpleEntry findEntry(Object key) {
-        if (key == null) {
-            return null;
+    private void fixAfterInsert(SimpleEntry toCheck) {
+        if (isDoubleRed(toCheck)) {
+            pullUp(toCheck);
         }
-        SimpleEntry curElement = root;
-        while (curElement != null && !curElement.key.equals(key)) {
-            if (((Comparable) curElement.key).compareTo(key) > 0) {
-                curElement = curElement.left;
-            } else {
-                curElement = curElement.right;
-            }
-        }
-        return curElement;
     }
-
-    private int compare(Object o1, Object o2) {
-        return this.comparator == null
-                ? ((Comparable) o1).compareTo(o2) : this.comparator.compare(o1, o2);
-    }
-
-    private static boolean isRightChild(SimpleEntry toCheck) {
-        return toCheck.parent.right == toCheck;
-    }
-
-    // RBRules util methods
 
     private void fixDuringInsert(SimpleEntry toCheck) {
         if (hasRedChildren(toCheck)) {
@@ -308,24 +303,12 @@ public class MyTreeMap implements MyMap {
         }
     }
 
-    private void fixAfterInsert(SimpleEntry toCheck) {
-        if (isDoubleRed(toCheck)) {
-            pullUp(toCheck);
+    private void flipColor(SimpleEntry top) {
+        if (top != root) {
+            changeColor(top);
         }
-    }
-
-    private boolean isDoubleRed(SimpleEntry toCheck) {
-        if (toCheck.color == RED && toCheck.parent.color == RED) {
-            return true;
-        }
-        return false;
-    }
-
-    private boolean hasRedChildren(SimpleEntry toCheck) {
-        if (toCheck.left == null || toCheck.right == null) {
-            return false;
-        }
-        return toCheck.left.color == RED && toCheck.right.color == RED;
+        changeColor(top.left);
+        changeColor(top.right);
     }
 
     private boolean hasBlackChildren(SimpleEntry toCheck) {
@@ -338,16 +321,30 @@ public class MyTreeMap implements MyMap {
         return toCheck.left.color == BLACK && toCheck.right.color == BLACK;
     }
 
-    public void changeColor(SimpleEntry entry) {
-        entry.color = !entry.color;
+    private boolean hasRedChildren(SimpleEntry toCheck) {
+        if (toCheck.left == null || toCheck.right == null) {
+            return false;
+        }
+        return toCheck.left.color == RED && toCheck.right.color == RED;
     }
 
-    private void flipColor(SimpleEntry top) {
-        if (top != root) {
-            changeColor(top);
+    private boolean isDoubleRed(SimpleEntry toCheck) {
+        return toCheck.color == RED && toCheck.parent.color == RED;
+    }
+
+    private static boolean isRightChild(SimpleEntry toCheck) {
+        return toCheck.parent.right == toCheck;
+    }
+
+    private static SimpleEntry minimal(SimpleEntry root) {
+        SimpleEntry curEntry = root;
+        if (curEntry == null) {
+            return null;
         }
-        changeColor(top.left);
-        changeColor(top.right);
+        while (curEntry.left != null) {
+            curEntry = curEntry.left;
+        }
+        return curEntry;
     }
 
     private void pullUp(SimpleEntry toPull) {
@@ -438,30 +435,14 @@ public class MyTreeMap implements MyMap {
         }
     }
 
-    private void roR(SimpleEntry top) {
-        if (top == null) {
-            return;
-        }
-        if (top.left == null) {
-            throw new IllegalArgumentException("Unable to perform rotation right");
-        }
-        top.left.parent = top.parent;
-        if (top == root) {
-            root = top.left;
+    private void removeLeaf(SimpleEntry toRemove) {
+        if (toRemove == root) {
+            root = null;
+        } else if (isRightChild(toRemove)) {
+            toRemove.parent.right = null;
         } else {
-            if (isRightChild(top)) {
-                top.parent.right = top.left;
-            } else {
-                top.parent.left = top.left;
-            }
+            toRemove.parent.left = null;
         }
-        SimpleEntry leftInnerG = top.left.right;
-        top.left.right = top;
-        if (leftInnerG != null) {
-            leftInnerG.parent = top;
-        }
-        top.parent = top.left;
-        top.left = leftInnerG;
     }
 
     private void roL(SimpleEntry top) {
@@ -490,6 +471,42 @@ public class MyTreeMap implements MyMap {
         top.right = rightInnerG;
     }
 
+    private void roR(SimpleEntry top) {
+        if (top == null) {
+            return;
+        }
+        if (top.left == null) {
+            throw new IllegalArgumentException("Unable to perform rotation right");
+        }
+        top.left.parent = top.parent;
+        if (top == root) {
+            root = top.left;
+        } else {
+            if (isRightChild(top)) {
+                top.parent.right = top.left;
+            } else {
+                top.parent.left = top.left;
+            }
+        }
+        SimpleEntry leftInnerG = top.left.right;
+        top.left.right = top;
+        if (leftInnerG != null) {
+            leftInnerG.parent = top;
+        }
+        top.parent = top.left;
+        top.left = leftInnerG;
+    }
+
+    private static SimpleEntry sibling(SimpleEntry entry) {
+        if (entry == null || entry.parent == null) {
+            return null;
+        }
+        if (isRightChild(entry)) {
+            return entry.parent.left;
+        }
+        return entry.parent.right;
+    }
+
     private static SimpleEntry successor(SimpleEntry entry) {
         if (entry == null) {
             return null;
@@ -509,135 +526,70 @@ public class MyTreeMap implements MyMap {
         return curEntry;
     }
 
-    private static SimpleEntry minimal(SimpleEntry root) {
-        SimpleEntry curEntry = root;
-        if (curEntry == null) {
-            return null;
-        }
-        while (curEntry.left != null) {
-            curEntry = curEntry.left;
-        }
-        return curEntry;
-    }
-
-    private static SimpleEntry sibling(SimpleEntry entry) {
-        if (entry == null || entry.parent == null) {
-            return null;
-        }
-        if (isRightChild(entry)) {
-            return entry.parent.left;
-        }
-        return entry.parent.right;
-    }
-
     public String toString() {
-
         if (this.root == null) return "";
-
         StringBuilder toReturn = new StringBuilder();
-
         Queue<SimpleEntry> q = new LinkedList<>();
-
         q.add(root);
-
         int maxLevel = getMaxLevel(root, 0);
-
         int maxKeySize = getLongestToString(root, 0) + 1;
-
         for (int i = 0; i <= maxLevel; i++) {
-
             int edgeOffset = (int) ((Math.pow(2, maxLevel - i - 1) - 1) * (maxKeySize + 1) + Math.ceil(maxKeySize / 2.0));
-
             toReturn.append(getSpace(' ', edgeOffset));
-
             int levelLength = (int) Math.pow(2, i);
-
             for (int j = 0; j < levelLength; j++) {
-
                 SimpleEntry curEntry = q.poll();
-
                 if (i != 0 && j % 2 == 0) toReturn.append('[');
-
                 toReturn.append(curEntry == null ? getString("--", maxKeySize - 1) : getString(curEntry.toString(), maxKeySize - 1));
-
                 if (i != 0 && j % 2 != 0) toReturn.append(']');
-
                 if (j != levelLength - 1) {
-
                     int nodeOffset = (int) (Math.pow(2, maxLevel - i) * (maxKeySize + 1) - maxKeySize);
-
                     toReturn.append(j % 2 != 0 ? getSpace(' ', nodeOffset) : getSpace('_', nodeOffset));
                 }
-
                 q.add(curEntry == null || curEntry.left == null ? null : curEntry.left);
-
                 q.add(curEntry == null || curEntry.right == null ? null : curEntry.right);
-
             }
-
             toReturn.append("\n");
         }
-
         toReturn.deleteCharAt(toReturn.length() - 1);
-
         return toReturn.toString();
     }
 
     private int getMaxLevel(SimpleEntry curEntry, int level) {
-
         if (curEntry == null) return level - 1;
-
         int leftLevel, rightLevel;
-
         leftLevel = getMaxLevel(curEntry.left, level + 1);
-
         rightLevel = getMaxLevel(curEntry.right, level + 1);
-
         return Math.max(level, Math.max(leftLevel, rightLevel));
     }
 
     private int getLongestToString(SimpleEntry curEntry, int maxSize) {
-
         if (curEntry == null) return maxSize;
-
         maxSize = Math.max(maxSize, curEntry.toString().length());
-
         int maxSizeLeft, maxSizeRight;
-
         maxSizeLeft = getLongestToString(curEntry.left, maxSize);
-
         maxSizeRight = getLongestToString(curEntry.right, maxSize);
-
         return Math.max(maxSize, Math.max(maxSizeLeft, maxSizeRight));
     }
 
     private String getSpace(char ch, int quant) {
-
         StringBuilder toReturn = new StringBuilder();
-
         while (quant-- > 0) {
-
             toReturn.append(ch);
         }
-
         return toReturn.toString();
     }
 
     private String getString(String data, int size) {
-
         StringBuilder toReturn = new StringBuilder();
-
         for (int i = 0; i < size - data.length(); i++) {
-
             toReturn.append(" ");
         }
-
         toReturn.append(data);
-
         return toReturn.toString();
     }
 
-    private void checkBlackHeights(SimpleEntry top, int curHeight) {
+    private void showBlackHeights(SimpleEntry top, int curHeight) {
         if (top == null) {
             return;
         }
@@ -645,10 +597,10 @@ public class MyTreeMap implements MyMap {
             curHeight++;
         }
         if (top.left != null) {
-            checkBlackHeights(top.left, curHeight);
+            showBlackHeights(top.left, curHeight);
         }
         if (top.right != null) {
-            checkBlackHeights(top.right, curHeight);
+            showBlackHeights(top.right, curHeight);
         }
         if (top.left == null && top.right == null) {
             System.out.println(top.key + ": " + curHeight);
@@ -657,56 +609,14 @@ public class MyTreeMap implements MyMap {
 
     public static void main(String[] args) throws Exception {
         MyTreeMap treeMap = new MyTreeMap();
-//        map.put(31, 31);
-//        map.put(43, 43);
-//        map.put(5, 5);
-//        map.put(90, 90);
-//        map.put(91, 91);
-//        map.put(92, 92);
-//        map.put(93, 93);
-//        map.put(50, 50);
-//        map.put(25, 25);
-//        map.put(75, 75);
-//        map.put(12, 12);
-//        map.put(37, 37);
-//        map.put(87, 87);
-//        map.put(26, 26);
-//        map.put(95, 95);
-//        map.put(96, 96);
-//        map.put(97, 97);
-//        map.put(98, 98);
-//        map.put(94, 94);
-        Map hashMap = new HashMap();
-        int toAdd;
-        for (int i = 0; i < 10000; i++) {
-            while (hashMap.containsKey(toAdd = (int) (Math.random() * 50000))) ;
-            hashMap.put(toAdd, toAdd);
+//        MyTreeMap treeMap = new MyTreeMap((o1, o2) -> (Integer)o2 - (Integer)o1);
+        for (int i = 0; i < 20; i++) {
+            Object toAdd = (int) (Math.random() * 100);
             treeMap.put(toAdd, toAdd);
         }
-
-
-
-        List keys = new ArrayList();
-        keys.addAll(hashMap.keySet());
-        for (int i = 0; i < 9980; i++) {
-            int toRemIndx = (int) (Math.random() * keys.size());
-            Object toRemove = keys.remove(toRemIndx);
-            treeMap.remove(toRemove);
-        }
         System.out.println("size = " + treeMap.size());
-        System.out.println("root = " + treeMap.root);
         System.out.println(treeMap);
-        treeMap.checkBlackHeights(treeMap.root, 0);
-
-        Iterator <Entry> iter = treeMap.entryIterator();
-        Integer prev = -1;
-        Integer cur;
-        while(iter.hasNext()){
-            if ((cur = (Integer)(iter.next().getKey())) < prev){
-                throw new Exception();
-            }
-            System.out.println(cur);
-            prev = cur;
-        }
+        System.out.println("\nBlack heights:");
+        treeMap.showBlackHeights(treeMap.root, 0);
     }
 }

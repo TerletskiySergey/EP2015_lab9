@@ -71,7 +71,7 @@ public class MyHashMap implements MyMap {
 
         @Override
         public Entry next() {
-            if (count >= size){
+            if (count >= size) {
                 throw new NoSuchElementException();
             }
             if (expectedModCount != modCount) {
@@ -127,17 +127,6 @@ public class MyHashMap implements MyMap {
         this.loadFactor = loadFactor;
     }
 
-    private static int tableSizeFor(int cap) {
-        if (--cap > 0) {
-            for (int mask = 1 << 30; mask > 0; mask >>>= 1) {
-                if ((mask & cap) > 0) {
-                    return mask >= MAXIMUM_CAPACITY ? MAXIMUM_CAPACITY : mask << 1;
-                }
-            }
-        }
-        return 1;
-    }
-
     @Override
     public void clear() {
         this.table = new SimpleEntry[table.length];
@@ -171,6 +160,11 @@ public class MyHashMap implements MyMap {
     }
 
     @Override
+    public Iterator entryIterator() {
+        return new EntryIterator();
+    }
+
+    @Override
     public Object get(Object key) {
         int hashCode = Objects.hashCode(key);
         int tableIndex = hashCode & table.length - 1;
@@ -193,33 +187,6 @@ public class MyHashMap implements MyMap {
     public Object put(Object key, Object value) {
         int hashCode = Objects.hashCode(key);
         return put(hashCode, key, value);
-    }
-
-    private Object put(int hashCode, Object key, Object value) {
-        int tableIndex = hashCode & table.length - 1;
-        SimpleEntry toAdd = new SimpleEntry(hashCode, key, value);
-        SimpleEntry curEntry = table[tableIndex];
-        while (curEntry != null) {
-            if (curEntry.key.equals(key)) {
-                Object toReturn = curEntry.value;
-                curEntry.value = value;
-                return toReturn;
-            }
-            if (curEntry.next == null) {
-                break;
-            }
-            curEntry = curEntry.next;
-        }
-        if (curEntry == null) {
-            table[tableIndex] = toAdd;
-        } else {
-            curEntry.next = toAdd;
-        }
-        if (++size > table.length * loadFactor && table.length < MAXIMUM_CAPACITY) {
-            resize();
-        }
-        modCount++;
-        return null;
     }
 
     @Override
@@ -259,10 +226,21 @@ public class MyHashMap implements MyMap {
         return size;
     }
 
-    @Override
-    public Iterator entryIterator() {
-        return new EntryIterator();
-    }
+/*    public void showMap() {
+        StringBuilder sb = new StringBuilder("{}");
+        StringBuilder sub;
+        for (SimpleEntry curEntry : table) {
+            sub = new StringBuilder("[" + curEntry + "]");
+            while (curEntry != null && curEntry.next != null) {
+                sub.insert(sub.length() - 1, ", " + (curEntry = curEntry.next));
+            }
+            sb.insert(sb.length() - 1, ", " + sub);
+        }
+        if (sb.length() > 2) {
+            sb.delete(1, 3);
+        }
+        System.out.println(sb.toString());
+    }*/
 
     @Override
     public String toString() {
@@ -277,21 +255,33 @@ public class MyHashMap implements MyMap {
         return toReturn.toString();
     }
 
-    public void showMap() {
-        StringBuilder sb = new StringBuilder("{}");
-        StringBuilder sub;
-        for (SimpleEntry curEntry : table) {
-            sub = new StringBuilder("[" + curEntry + "]");
-            while (curEntry != null && curEntry.next != null) {
-                sub.insert(sub.length() - 1, ", " + (curEntry = curEntry.next));
+    private Object put(int hashCode, Object key, Object value) {
+        int tableIndex = hashCode & table.length - 1;
+        SimpleEntry toAdd = new SimpleEntry(hashCode, key, value);
+        SimpleEntry curEntry = table[tableIndex];
+        while (curEntry != null) {
+            if (curEntry.key.equals(key)) {
+                Object toReturn = curEntry.value;
+                curEntry.value = value;
+                return toReturn;
             }
-            sb.insert(sb.length() - 1, ", " + sub);
+            if (curEntry.next == null) {
+                break;
+            }
+            curEntry = curEntry.next;
         }
-        if (sb.length() > 2) {
-            sb.delete(1, 3);
+        if (curEntry == null) {
+            table[tableIndex] = toAdd;
+        } else {
+            curEntry.next = toAdd;
         }
-        System.out.println(sb.toString());
+        if (++size > table.length * loadFactor && table.length < MAXIMUM_CAPACITY) {
+            resize();
+        }
+        modCount++;
+        return null;
     }
+
 
     private void resize() {
         int newCap = loadFactor == DEFAULT_LOAD_FACTOR
@@ -305,40 +295,14 @@ public class MyHashMap implements MyMap {
         this.table = temp.table;
     }
 
-    public static void main(String[] args) {
-        MyHashMap map = new MyHashMap(1);
-        System.out.println(map.size());
-        System.out.println(map.table.length);
-        map.put(4, 1);
-        System.out.println(map);
-        map.showMap();
-        map.put(5, 1);
-        System.out.println(map);
-        map.showMap();
-        map.put(6, 1);
-        System.out.println(map);
-        map.showMap();
-        map.put(7, 1);
-        System.out.println(map);
-        map.showMap();
-        System.out.println(map.size());
-        System.out.println(map.table.length);
-//        for (int i = 0; i < 100; i++) {
-//            int curKey = (int) (Math.random() * 100);
-//            map.put(curKey, curKey);
-//            System.out.println("i = " + i);
-//            System.out.println("size = " + map.size());
-//            System.out.println(map);
-//            map.showMap();
-//        }
-//        map.put(4, 1);
-//        map.put(2, 2);
-//        map.put(3, 3);
-//        map.put(3, 31);
-//        map.put(3, 32);
-//        map.put(12, 12);
-//        map.put(19, 19);
-//        map.put(17, 17);
-//        map.put(35, 35);
+    private static int tableSizeFor(int cap) {
+        if (--cap > 0) {
+            for (int mask = 1 << 30; mask > 0; mask >>>= 1) {
+                if ((mask & cap) > 0) {
+                    return mask >= MAXIMUM_CAPACITY ? MAXIMUM_CAPACITY : mask << 1;
+                }
+            }
+        }
+        return 1;
     }
 }
